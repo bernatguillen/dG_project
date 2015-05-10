@@ -1,0 +1,9 @@
+================================
+Nodal Discontinuous Galerkin Methods, APC523 project
+================================
+
+This is the project for course APC523, I will implement discontinuous nodal Galerkin methods for several problems (1-D and 2-D, advection, burger's and fluid dynamics) and compare them to Finite Volume methods / Finite Difference methods.
+
+===========
+Files
+===========
