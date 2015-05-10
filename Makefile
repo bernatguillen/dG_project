@@ -2,8 +2,8 @@ testobjects = unittest.o mesh1d.o
 test = unittest
 
 
-$(objects): CXXFLAGS = -g -Wall -lm
-$(targets): CXXFLAGS = -g -Wall -lm
+$(testobjects): CXXFLAGS = -g -Wall -L/usr/lib -lm -lgsl
+$(test): CXXFLAGS = -g -Wall -L/usr/lib -lm
 
 
 .PHONY: all clean depend
@@ -12,7 +12,8 @@ all: $(test)
 	echo make complete
 
 $(test) : $(testobjects)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lgsl
+
 
 clean:
 	$(RM) *.o
