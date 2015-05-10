@@ -4,10 +4,11 @@
 #include<stdlib.h>
 #include<cmath>
 #include<gsl/gsl_linalg.h>
+#include<gsl/gsl_eigen.h>
 
 int JacobiP(int N, double a, double b, double *x,double *fx, int npoints);
 int JacobiGQ(int N, double a, double b, double *x, double *w);
-int JacobiGL(int N, double a, double b, double *x, double *w);
+int JacobiGL(int N, double a, double b, double *x);
 
 class JacobiIterator{
  public:
