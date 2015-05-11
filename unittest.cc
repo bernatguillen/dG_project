@@ -4,10 +4,6 @@
 #include "mesh1d.h"
 
 
-
-
-
-
 /*Unit testing for the different functions developed for the dG method*/
 int TestJacobiP(){
   const int N = 100;
@@ -42,8 +38,8 @@ int TestJacobiGQ(){
   const int N=4;
   double x[N+1];
   double w[N+1];
-  double xref[] = {0.830223896278566929872,0.4688487934707142138038,0,-0.830223896278566929872,-0.4688487934707142138038};
-  double wref[] = {0.086017682122807453242,0.336839460734335403901,0.487619047619047619048,0.086017682122807453242,0.336839460734335403901};
+  double xref[] = {-0.830223896278566929872,-0.4688487934707142138038,0,0.4688487934707142138038,0.830223896278566929872};
+  double wref[] = {0.086017682122807453242,0.336839460734335403901,0.487619047619047619048,0.336839460734335403901,0.086017682122807453242};
 
   JacobiGQ(N,1,1,x,w);
   for (int i = 0; i < N+ 1; ++i){
@@ -57,7 +53,7 @@ int TestJacobiGQ(){
 int TestJacobiGL(){
   const int N = 4;
   double x[N+1];
-  double xref[] = {-1,0.6546536707079771437983,0,-0.6546536707079771437983,1};
+  double xref[] = {-1,-0.6546536707079771437983,0,0.6546536707079771437983,1};
   JacobiGL(N,0,0,x);
   for (int i = 0; i < N+1; ++i){
     std::cout<<"xi :"<<x[i]<<std::endl;
@@ -65,6 +61,38 @@ int TestJacobiGL(){
   }
   return 0;
 }
+
+int TestDmatrix1D(){
+  const int N = 2;
+  double x[N+1];
+  double **V;
+  double **D;
+  double Dref[9]={-1.5,2,-0.5,-0.5,0,0.5,0.5,-2,1.5};
+  V = new double*[N+1];
+  D = new double*[N+1];
+  for(int i = 0; i<N+1; ++i){
+    V[i] = new double[N+1];
+    D[i] = new double[N+1];
+  }
+  JacobiGL(N,0,0,x);
+  Vandermonde1D(N,x,V,N+1);
+  Dmatrix1D(N, x, V,D, N+1);
+  for (int i = 0; i < N+1; ++i){
+    for(int j = 0; j< N+1; ++j){
+      std::cout << D[i][j] << "\t";
+      if(abs(D[i][j]-Dref[3*i+j])>1e-8) return 1;
+    }
+    std::cout << std::endl;
+  }
+  for(int i = 0; i<N+1; ++i){
+    delete [] V[i];
+    delete [] D[i];
+  }
+  delete [] V;
+  delete [] D;
+  return 0;
+}
+
 int main(int argc, char **argv){
   if(!TestJacobiP()){
     std::cout<<"TestJacobiP passed!"<<std::endl;
@@ -76,10 +104,15 @@ int main(int argc, char **argv){
   }else{
     std::cout<<"TestJacobiGQ failed!"<<std::endl;
   }
-    if(!TestJacobiGL()){
+  if(!TestJacobiGL()){
     std::cout<<"TestJacobiGL passed!"<<std::endl;
   }else{
     std::cout<<"TestJacobiGL failed!"<<std::endl;
+  }
+  if(!TestDmatrix1D()){
+    std::cout<<"TestDmatrix1D passed!"<<std::endl;
+  }else{
+    std::cout<<"TestDmatrix1D failed!"<<std::endl;
   }
 
   return(1);
