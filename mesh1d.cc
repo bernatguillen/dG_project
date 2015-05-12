@@ -228,175 +228,322 @@ dG1D_Framework::dG1D_Framework(int K_in, int Nv_in, int N_in, double *Vx_in, int
   : K(K_in),
   Nv(Nv_in),
   N(N_in){
-    //Npoints per node
-    Np = N+1;
-    //Faces at point p, faces at node K
-    Nfp = 1;
-    Nfaces = 2;
-    //Node tolerance
-    NODETOL = 1e-10;
-    Vx = new double[Nv];
-    for(int i = 0; i<Nv; ++i) Vx[i] = Vx_in[i];
-    EToV = new int* [K];
+
+  //Npoints per node
+  Np = N+1;
+  //Faces at point p, faces at node K
+  Nfp = 1;
+  Nfaces = 2;
+  //Node tolerance
+  NODETOL = 1E-10;
+  Vx = new double[Nv];
+  for(int i = 0; i<Nv; ++i) Vx[i] = Vx_in[i];
+  EToV = new int* [K];
+  for(int k = 0; k<K; ++k){
+    EToV[k] = new int[2];
+    EToV[k][0] = EToV_in[k][0];
+    EToV[k][1] = EToV_in[k][1];
+  }
+  //r are Gauss Lobatto quadrature points
+  r = new double[Np];
+  JacobiGL(N,0,0,r);
+  //Vandermonde and inverse of Vandermonde Matrix
+  V = new double*[Np];
+  Vinv = new double*[Np];
+  for(int i = 0; i<Np; ++i){
+    V[i]=new double[Np];
+    Vinv[i]=new double[Np];
+  }
+  Vandermonde1D(N, r, V, Np);
+  InvMatrix(N,V,Vinv);
+  //Dr derivative matrix
+  Dr = new double*[Np];
+  for(int i = 0; i<Np; ++i){
+    Dr[i] = new double[Np];
+  }
+  Dmatrix1D(N, r, V, Dr, Np);
+  //LIFT Matrix (Surface (boundary) terms) V*Vt*Emat
+  //Emat = zeros(Np,Nfaces*Nfp) , [1 0 0 0 ... 0],[0 0 ... 0 1]-> In this case it is not necessary to calculate
+  LIFT = new double*[Np];
+  for(int i = 0;i <Np; ++i){
+    LIFT[i] = new double[2];
+    LIFT[i][0] = 0;
+    LIFT[i][1] = 0;
+  }
+  for(int i = 0; i<Np; ++i){
+    for(int j = 0; j<Np; ++j){
+      LIFT[i][0] += V[0][j]*V[i][j];
+      LIFT[i][1] += V[Np-1][j]*V[i][j];
+    }
+  }
+  //create x, matrix of physical points (affine traslation of r for each node), each column is a node
+  x = new double*[Np];
+  for(int i = 0; i<Np;++i){
+    x[i] = new double[K];
+  }
+  for(int k = 0; k<K; ++k){
+    for(int i = 0; i<Np; ++i){
+      x[i][k] = Vx[EToV[k][0]] + 0.5*(1+r[i])*(Vx[EToV[k][1]]-Vx[EToV[k][0]]);
+    }
+  }
+  //create geometric factors rx and J
+  rx = new double*[Np];
+  J = new double*[Np];
+  for(int i = 0; i<Np;++i){
+    rx[i] = new double[K];
+    J[i] = new double[K];
     for(int k = 0; k<K; ++k){
-      EToV[k] = new int[2];
-      EToV[k][0] = EToV_in[k][0];
-      EToV[k][1] = EToV_in[k][1];
-    }
-    //r are Gauss Lobatto quadrature points
-    r = new double[Np];
-    JacobiGL(N,0,0,r);
-    //Vandermonde and inverse of Vandermonde Matrix
-    V = new double*[Np];
-    Vinv = new double*[Np];
-    for(int i = 0; i<Np; ++i){
-      V[i]=new double[Np];
-      Vinv[i]=new double[Np];
-    }
-    Vandermonde1D(N, r, V, Np);
-    InvMatrix(N,V,Vinv);
-    //Dr derivative matrix
-    Dr = new double*[Np];
-    for(int i = 0; i<Np; ++i){
-      Dr[i] = new double[Np];
-    }
-    Dmatrix1D(N, r, V, Dr, Np);
-    //LIFT Matrix (Surface (boundary) terms) V*Vt*Emat
-    //Emat = zeros(Np,Nfaces*Nfp) , [1 0 0 0 ... 0],[0 0 ... 0 1]-> In this case it is not necessary to calculate
-    LIFT = new double*[Np];
-    for(int i = 0;i <Np; ++i){
-      LIFT[i] = new double[2];
-      LIFT[i][0] = 0;
-      LIFT[i][1] = 0;
-    }
-    for(int i = 0; i<Np; ++i){
+      J[i][k] = 0;
       for(int j = 0; j<Np; ++j){
-        LIFT[i][0] += V[0][j]*V[i][j];
-        LIFT[i][1] += V[Np-1][j]*V[i][j];
+        J[i][k]+=Dr[i][j]*x[j][k];
       }
+      rx[i][k] = 1/J[i][k];
     }
-    //create x, matrix of physical points (affine traslation of r for each node), each column is a node
-    x = new double*[Np];
-    for(int i = 0; i<Np;++i){
-      x[i] = new double[K];
+  }
+  //create mask and masked vectors/matrices
+  int res1 = 0; //(finding how many times r = -1)
+  int res2 = 0; //(finding how many times r = 1)
+  for(int i = 0; i<Np; ++i){
+    res1+= (fabs(r[i]+1.0)<NODETOL);
+    res2+= (fabs(r[i]-1.0)<NODETOL);
+  }
+  Fmask = new int*[res1];
+  for(int i = 0; i< res1; ++i){
+    Fmask[i] = new int[2];
+  }
+  DFmask = res1;
+  int i1 = 0;
+  int i2 = 0;
+  for(int i = 0; i<Np; ++i){
+    if(fabs(r[i]+1.0)<NODETOL){
+      Fmask[i1][0] = i;
+      ++i1;
+    } 
+    if(fabs(r[i]-1.0)<NODETOL){
+      Fmask[i2][1] = i;
+      ++i2;
     }
+  }
+  Fx = new double*[2];
+  Fscale = new double*[2];
+  for(int i = 0; i<2; ++i){
+    Fx[i] = new double[K];
+    Fscale[i] = new double[K];
     for(int k = 0; k<K; ++k){
-      for(int i = 0; i<Np; ++i){
-        x[i][k] = Vx[EToV[k][0]] + 0.5*(1+r[i])*(Vx[EToV[k][1]]-Vx[EToV[k][0]]);
+      Fx[i][k] = x[Fmask[0][i]][k];
+      Fscale[i][k] = rx[Fmask[0][i]][k];
+    }
+  }
+  //Surface normals
+  nx = new double*[Nfp*Nfaces];
+  for(int n=0; n<Nfp*Nfaces; ++n){
+    nx[n] = new double[K];
+  }
+  for(int k = 0; k<K; ++k){
+    nx[0][k] = -1.0;
+    nx[1][k] = 1.0;
+  }
+  
+  //Connectivity arrays
+  int **SpFToV = new int*[2*K*Nfaces];
+  for(int i = 0; i<2*K*Nfaces; ++i){
+    SpFToV[i] = new int[2];
+  }
+  int sk = 0;
+  for(int k = 0; k<K; ++k){
+    for(int fac = 0; fac<Nfaces; ++fac){
+      SpFToV[sk][0] = sk;
+      SpFToV[sk][1] = EToV[k][fac];
+      ++sk; 
+    }
+  }
+  int **SpFToF = new int *[2*K*Nfaces];
+  for(int i = 0; i<2*Nfaces*K; ++i){
+    SpFToF[i] = new int[2];
+  }
+  sk = 0;
+  for(int skv = 0; skv<K*Nfaces; ++skv){
+    for(int skvaux = 0; skvaux<K*Nfaces; ++skvaux){
+      if(skvaux != skv && SpFToV[skv][1] == SpFToV[skvaux][1]){
+        SpFToF[sk][0] = skv;
+        SpFToF[sk][1] = skvaux;
+        ++sk;
       }
     }
-    //create geometric factors rx and J
-    rx = new double*[Np];
-    J = new double*[Np];
-    for(int i = 0; i<Np;++i){
-      rx[i] = new double[K];
-      J[i] = new double[K];
-      for(int k = 0; k<K; ++k){
-        J[i][k] = 0;
-        for(int j = 0; j<Np; ++j){
-          J[i][k]+=Dr[i][j]*x[j][k];
-        }
-        rx[i][k] = 1/J[i][k];
+  }
+  
+  for(int i =0 ; i<2*K*Nfaces; ++i){
+    delete [] SpFToV[i];
+  }
+  delete [] SpFToV;
+  EToF = new int*[K];
+  EToE = new int*[K];
+  for(int k = 0; k<K; ++k){
+    EToF[k] = new int[Nfaces];
+    EToE[k] = new int[Nfaces];
+    for(int i = 0; i<Nfaces; ++i){
+      EToF[k][i] = i;
+      EToE[k][i] = k;
+    }
+  }
+  for(int skaux = 0; skaux<sk; ++skaux){
+    EToE[SpFToF[skaux][0]/Nfaces][SpFToF[skaux][0]%Nfaces] = SpFToF[skaux][1]/Nfaces;
+    EToF[SpFToF[skaux][0]/Nfaces][SpFToF[skaux][0]%Nfaces] = SpFToF[skaux][1] % Nfaces;
+  }
+  for(int i = 0; i<2*Nfaces*K; ++i){
+    delete [] SpFToF[i];
+  }
+  delete [] SpFToF;
+
+  //BuildMaps1D 
+  int ***vmapM_3D = new int**[Nfp];
+  int ***vmapP_3D = new int**[Nfp];
+  for(int i = 0; i<Nfp; ++i){
+    vmapM_3D[i] = new int*[Nfaces];
+    vmapP_3D[i] = new int*[Nfaces];
+    for(int j = 0; j<Nfaces; ++j){
+      vmapM_3D[i][j] = new int[K];
+      vmapP_3D[i][j] = new int[K];
+      for(int l = 0; l<K;++l){
+        vmapM_3D[i][j][l] = 0;
+        vmapP_3D[i][j][l] = 0;
       }
     }
-    //create mask and masked vectors/matrices
-    int res1 = 0; //(finding how many times r = -1)
-    int res2 = 0; //(finding how many times r = 1)
-    for(int i = 0; i<Np; ++i){
-      res1+= (abs(r[i]+1)<NODETOL);
-      res2+= (abs(r[i]-1)<NODETOL);
+  }
+  int **nodeids = new int*[Np];
+  for(int n = 0; n<Np; ++n){
+    nodeids[n] = new int[K];
+  }
+  sk = 0;
+  for(int k = 0; k<K; ++k){
+    for(int n = 0; n<Np; ++n){
+      nodeids[n][k] = sk;
+      ++sk;
     }
-    Fmask = new int[res1+res2];
-    DFmask = res1+res2;
-    int i1 = 0;
-    int i2 = res1;
-    for(int i = 0; i<Np; ++i){
-      if(abs(r[i]+1)<NODETOL){
-        Fmask[i1] = i;
-        ++i1;
-      } 
-      if(abs(r[i]-1)<NODETOL){
-        Fmask[i2] = i;
-        ++i2;
+  }
+  for(int k = 0; k<K; ++k){
+    for(int f = 0; f<Nfaces; ++f){
+      for(int n = 0; n<Nfp; ++n){
+        vmapM_3D[n][f][k] = nodeids[Fmask[n][f]][k];
       }
     }
-    Fx = new double*[DFmask];
-    Fscale = new double*[DFmask];
-    for(int d = 0; d<DFmask; ++d){
-      Fx[d] = new double[K];
-      Fscale[d] = new double[K];
-      for(int k = 0; k<K; ++k){
-        Fx[d][k] = x[Fmask[d]][k];
-        Fscale[d][k] = rx[Fmask[d]][k];
+  }
+  for(int n = 0; n<Np; ++n){
+    delete [] nodeids[n];
+  }
+  delete [] nodeids;
+
+  double *x1 = new double[Nfp];
+  double *x2 = new double[Nfp];
+
+  for(int k = 0; k<K; ++k){
+    for(int f = 0; f<Nfaces; ++f){
+        sk = 1;
+        for(int n = 0; n<Nfp; ++n){
+        x1[n] = x[vmapM_3D[n][f][k]%Np][vmapM_3D[n][f][k]/Np];
+        x2[n] = x[vmapM_3D[n][EToF[k][f]][EToE[k][f]]%Np][vmapM_3D[n][EToF[k][f]][EToE[k][f]]/Np];
+        sk&=(pow(x1[n]-x2[n],2)<NODETOL);
+      }
+      if(sk) for(int n = 0; n<Nfp; ++n) vmapP_3D[n][f][k] = vmapM_3D[n][EToF[k][f]][EToE[k][f]];
+    }
+  }
+  delete [] x1;
+  delete [] x2;
+  vmapM = new int[Nfp*Nfaces*K];
+  vmapP = new int[Nfp*Nfaces*K];
+  for(int k = 0; k<K; ++k){
+    for(int f = 0; f<Nfaces; ++f){
+      for(int n = 0; n<Nfp; ++n){
+        vmapM[n+f*Nfp+k*Nfp*Nfaces] = vmapM_3D[n][f][k];
+        vmapP[n+f*Nfp+k*Nfp*Nfaces] = vmapP_3D[n][f][k];
       }
     }
-    //Surface normals
-    nx = new double*[Nfp*Nfaces];
-    for(int n=0; n<Nfp*Nfaces; ++n){
-      nx[n] = new double[K];
-      for(int k = 0; k<K; ++k){
-        nx[0][k] = -1.0;
-        nx[1][k] = 1.0;
-      }
-    }
-    //Connectivity arrays
-    int **SpFToV = new int*[2*K*Nfaces];
-    for(int i = 0; i<2*K*Nfaces; ++i){
-      SpFToV[i] = new int[2];
-    }
-    int sk = 0;
-    for(int k = 0; k<K; ++k){
-      for(int fac = 0; fac<Nfaces; ++fac){
-        SpFToV[sk][0] = sk;
-        SpFToV[sk][1] = EToV[k][fac];
-        ++sk; 
-      }
-    }
-    int **SpFToF = new int *[2*K*Nfaces];
-    for(int i = 0; i<2*Nfaces*K; ++i){
-      SpFToF[i] = new int[2];
-    }
-    sk = 0;
-    for(int skv = 0; skv<K*Nfaces; ++skv){
-      for(int skvaux = 0; skvaux<K*Nfaces; ++skvaux){
-        if(skvaux != skv && SpFToV[skv][1] == SpFToV[skvaux][1]){
-          SpFToF[sk][0] = skv;
-          SpFToF[sk][1] = skvaux;
-          ++sk;
-        }
-      }
-    }
-    for(int i =0 ; i<2*K*Nfaces; ++i){
-      delete [] SpFToV[i];
-    }
-    delete [] SpFToV;
-    
+  }
+  res1 = 0;
+  for(int i = 0; i<Nfp*Nfaces*K; ++i){
+    res1 += vmapM[i]==vmapP[i];
+  }
+  dimmapB = res1;
+  vmapB = new int[res1];
+  mapB = new int[res1];
+  i1 = 0;
+  for(int i = 0; i<dimmapB; ++i){
+    if(vmapM[i] == vmapP[i]){
+      mapB[i1] =  i;
+      vmapB[i1] = vmapM[i];
+    }  
   }
 
+  for(int n = 0; n<Nfp; ++n){
+    for(int f=0; f<Nfaces; ++f){
+     delete [] vmapM_3D[n][f];
+     delete [] vmapP_3D[n][f];
+    } 
+    delete [] vmapM_3D[n];
+    delete [] vmapP_3D[n];
+  }
+  delete [] vmapM_3D;
+  delete [] vmapP_3D;
+  mapI = 1;
+  mapO = K*Nfaces;
+  vmapI = 1;
+  vmapO = K*Np;
+  rk4a[0] = 0.0;
+  rk4b[0] = 1432997174477.0/9575080441755.0;
+  rk4c[0] = 0.0;
+  rk4a[1] = -567301805773.0/1357537059087.0 ;
+  rk4b[1] = 5161836677717.0/13612068292357.0;
+  rk4c[1] = 1432997174477.0/9575080441755.0 ;
+  rk4a[2] = -2404267990393.0/2016746695238.0 ;
+  rk4b[2] = 2526269341429.0/6820363962896.0;
+  rk4c[2] = -2404267990393.0/2016746695238.0 ;
+  rk4a[3] = -3550918686646.0/2091501179385.0 ;
+  rk4b[3] = 2006345519317.0/3224310063776.0 ;
+  rk4c[3] = -3550918686646.0/2091501179385.0 ;
+  rk4a[4] = -1275806237668.0/842570457699.0;
+  rk4b[4] = 2277821191437.0/14882151754819.0;
+  rk4c[4] = 2802321613138.0/2924317926251.0;
+}
+
+dG1D_Framework::~dG1D_Framework(){
+  delete [] Vx;
+  for(int k = 0; k<K; ++k){
+    delete [] EToV[k];
+    delete [] EToF[k];
+    delete [] EToE[k];
+  } 
+  delete [] EToV;
+  delete [] EToF;
+  delete [] EToE;
+  delete [] r;
+  for(int i = 0; i<Np; ++i){
+    delete [] V[i];
+    delete [] Vinv[i];
+    delete [] Dr[i];
+    delete [] LIFT[i];
+    delete [] x[i];
+    delete [] rx[i];
+    delete [] J[i];
+  }
+  delete [] V;
+  delete [] Vinv;
+  delete [] Dr;
+  delete [] LIFT;
+  delete [] x;
+  delete [] rx;
+  delete [] J;
+  for(int i = 0; i<DFmask; ++i){
+    delete [] Fmask[i];
+  }
+  delete [] Fmask;
+  for(int i = 0; i<2; ++i){
+    delete [] Fx[i];
+    delete [] Fscale[i];
+  }
+  delete [] vmapM;
+  delete [] vmapP;
+  delete [] vmapB;
+  delete [] mapB;
+}
 
 
-JacobiIterator::JacobiIterator(int m)
-  : m_(m){
-  xaux_ = new double[m_];
-  h_ = 1.0/float(m_-1);
-}
-
-JacobiIterator::~JacobiIterator() {
-  delete [] xaux_;
-}
-int JacobiIterator::Step(double *x,double *b, int m){
-  double h = 1.0/double(m-1);
-  for(int i = 1; i<m-1;++i){
-    xaux_[i] = 0.5*(x[i-1]+x[i+1]-h*h*b[i]);
-  }
-  for(int i = 1; i<m-1; ++i){
-    x[i] = xaux_[i];
-  }
-  return 1;
-}
-int JacobiIterator::Solve(double *x0, double *b,int m, int nsteps){
-  for(int k = 0; k<nsteps; ++k){
-    Step(x0,b,m);
-  }
-  return 1;
-}

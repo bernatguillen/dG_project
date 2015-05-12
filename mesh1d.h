@@ -38,30 +38,19 @@ public:
 	double **nx; //outward normals
 	double **Fx; //masked array of points (only vertices of each node)
 	double **Fscale; //masked inverse jacobian J
-	int *Fmask;
+	int **Fmask;
 	int DFmask;
-	double **EToF;
-	double **EToE;
+	int **EToF;
+	int **EToE;
 	int *vmapM;
 	int *vmapP;
+	int dimmapB;
 	int *mapB;
 	int *vmapB;
 	int mapI, mapO, vmapI, vmapO;
-	double *rk4a;
-	double *rk4b;
-	double *rk4c;
-};
-
-class JacobiIterator{
- public:
-  JacobiIterator(int m);
-  ~JacobiIterator();
-  int Step(double *x, double *b, int m);
-  int Solve(double *x0, double *b, int nsteps, int stride);
- private:
-  const int m_;
-  double h_;
-  double *xaux_;
+	double rk4a[5];
+  	double rk4b[5];
+  	double rk4c[5];
 };
 
 #endif //MESH1D_H_
