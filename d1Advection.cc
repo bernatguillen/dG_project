@@ -1,48 +1,96 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <cmath>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
+#include<stdlib.h>
+#include<cmath>
+#include<gsl/gsl_linalg.h>
+#include<gsl/gsl_eigen.h>
+#include<gsl/gsl_sort.h>
+#include<gsl/gsl_matrix.h>
+#include<gsl/gsl_cblas.h>
+#include<limits>
+#include<iostream>
 
-int main(int argc, char *argv[]) {
-  /*Declaring variables m,nsteps,bd,solver,u,f*/
-  if (argc != 3) {
-    printf("USAGE: %s <meshsize> <T>\n", argv[0]); //p1 case, nsteps = 20
-    exit(1);
+#include "mesh1d.h"
+#include "d1Advection.h"
+
+int AdvecRHS1D(double **u, double t, double a, dG1D_Framework *mesh, double **rhsu){
+  double alpha = 1.0;
+  double **du = new double*[mesh->Nfp*mesh->Nfaces];
+  for(int i = 0; i<mesh->Nfp*mesh->Nfaces; ++i){
+    du[i] = new double[mesh->K];
   }
-  const int m = atoi(argv[1]);
-  const double T = atof(argv[2]);
-  const int nsteps;
-
-  double bd[2];
-  bd[0] = 1.0;
-  bd[1] = 3.0;
-
-  JacobiIterator *solver;
-  solver = new JacobiIterator(m);
-
-  double u[m];
-  double f[m];
-  for(int i = 0; i<m; ++i){
-    u[i] = float(i)/float(m-1);
+  int iM, jM, iP, jP,i,j;
+  for(int m = 0; m<mesh->Nfp*mesh->Nfaces*mesh->K; ++m){
+    iM = mesh->vmapM[m]%(mesh->Np);
+    jM = mesh->vmapM[m]/mesh->Np;
+    iP = mesh->vmapP[m]%mesh->Np;
+    jP = mesh->vmapP[m]/mesh->Np;
+    i = m%(mesh->Nfp*mesh->Nfaces);
+    j = m/(mesh->Nfp*mesh->Nfaces);
+    du[i][j] = (u[iM][jM]-u[iP][jP])*(a*mesh->nx[i][j]-(1-alpha)*fabs(a*mesh->nx[i][j]))/2.0;
   }
-  Myrhs(u,f,m);
-  /*Solving the equation*/
-  for(int i = 0; i<m; ++i){
-    u[i] = bd[0] + (bd[1]-bd[0])*float(i)/float(m-1);
-  }
-  solver->Solve(u,f,m,nsteps);
-  std::string str1 = "elliptic";
-  std::string str2 = argv[2];
-  std::string str3 = ".dat";
-  std::ofstream myfile((str1+str2+str3).c_str());
-  if(myfile.is_open()){
-    myfile << std::setprecision (15);
-    for(int i = 0; i<m; ++i){
-      myfile << u[i] << std::endl;
+  double uin = -sin(a*t);
+  i = mesh->mapI%(mesh->Nfp*mesh->Nfaces*mesh->K);
+  j = mesh->mapI/(mesh->Nfp*mesh->Nfaces*mesh->K);
+  iM = mesh->vmapI%mesh->Np;
+  jM = mesh->vmapI/mesh->Np;
+  du[i][j] = (u[iM][jM]-uin)*(a*mesh->nx[i][j]-(1-alpha)*fabs(a*mesh->nx[i][j]))/2.0;
+  i = mesh->mapO%(mesh->Nfp*mesh->Nfaces*mesh->K);
+  j = mesh->mapO/(mesh->Nfp*mesh->Nfaces*mesh->K);
+  du[i][j] = 0.0;
+  for(int i = 0; i<mesh->Np; ++i){
+    for(int j = 0; j<mesh->K; ++j){
+      rhsu[i][j] = 0;
+      for(int l = 0; l<mesh->Np; ++l){
+        rhsu[i][j] -= a*mesh->Dr[i][l]*u[l][j];
+      }
+      rhsu[i][j]*=mesh->rx[i][j];
+      for(int l = 0; l<mesh->Nfp*mesh->Nfaces; ++l){
+        rhsu[i][j] += mesh->LIFT[i][l]*mesh->Fscale[l][j]*du[l][j];
+      }
     }
   }
-  delete solver;
-  return 0;
+  for(int i = 0; i<mesh->Nfp*mesh->Nfaces; ++i){
+    delete [] du[i];
+  }
+  delete [] du;
+  return 1;
+}
+
+int Advec1D(double **u, double a, double FinalTime, dG1D_Framework *mesh){
+  double **rhsu = new double*[mesh->Np];
+  double **resu = new double*[mesh->Np];
+  for(int i = 0; i<mesh->Np; ++i){ 
+    rhsu[i] = new double[mesh->K];
+    resu[i] = new double[mesh->K];
+    for(int j = 0; j<mesh->K; ++j){
+      resu[i][j] = 0.0;
+    }
+  }
+
+  double t = 0;
+  double timelocal;
+  double xmin = std::numeric_limits<double>::max();
+  for(int i = 1; i<mesh->Np; ++i){
+    for(int j = 0; j<mesh->K; ++j){
+      if(fabs(mesh->x[i][j]-mesh->x[i-1][j])<xmin) xmin = fabs(mesh->x[i][j]-mesh->x[i-1][j]);
+    }
+  }
+  double CFL = 0.75;
+  double dt = CFL/(2*a)*xmin;
+  int Nsteps = int(FinalTime/dt) + 2;
+  dt = FinalTime/(Nsteps-1);
+
+  for(int tstep = 0; tstep<Nsteps; ++tstep){
+    t = tstep*dt;
+    for(int INTRK = 0; INTRK<5; INTRK++){
+      timelocal = t + mesh->rk4c[INTRK]*dt;
+      AdvecRHS1D(u,timelocal,a,mesh,rhsu);
+      for(int i = 0; i<mesh->Np; ++i){
+        for(int j = 0; j<mesh->K; ++j){
+          resu[i][j] = mesh->rk4a[INTRK]*resu[i][j] + dt*rhsu[i][j];
+          u[i][j] += u[i][j] + mesh->rk4b[INTRK]*resu[i][j];
+        }
+      }
+    }
+  }
+  return 1;
 }
