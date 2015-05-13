@@ -10,6 +10,7 @@
 #include<iostream>
 
 #include "mesh1d.h"
+#include "mesh2d.h"
 
 
 int JacobiP(int N, double a, double b, double *x,double *fx, int npoints){

@@ -114,6 +114,36 @@ int main(int argc, char **argv){
   }else{
     std::cout<<"TestDmatrix1D failed!"<<std::endl;
   }
-
+  double xmin = 0.0;
+  double xmax = 4.0;
+  int K = 4;
+  int Nv;
+  double Vx[5];
+  int **EToV = new int*[K];
+  for(int k =0 ; k<K; ++k){
+    EToV[k] = new int[2];
+  }
+  int N = 3;
+  MeshGen1D(xmin, xmax, K, &Nv, Vx, EToV);
+  dG1D_Framework *Test = new dG1D_Framework(K,Nv,N,Vx,EToV);
+  
+  for(int i = 0; i<N+1; ++i) std::cout << Test->r[i] << " ";
+  std::cout << std::endl;
+  for(int i = 0; i<N+1; ++i){
+    for(int k = 0; k<K; ++k){
+      std::cout << Test->x[i][k] << "\t";
+    }
+    std::cout << std::endl;
+  }
+  for(int k = 0; k<K; ++k){
+    for(int i = 0; i<Test->Nfaces; ++i){
+     std::cout << Test->EToE[k][i] << "\t";
+    }
+    std::cout<<std::endl;
+  }
+  for(int k = 0 ; k<K; ++k){
+    delete [] EToV[k];
+  }
+  delete []EToV;
   return(1);
 }

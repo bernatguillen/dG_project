@@ -4,7 +4,7 @@
 #include<iostream>
 #include<fstream>
 #include "mesh1d.h"
-#include "d1Advection.h"
+#include "d1discont.h"
 
 
 int main(int argc, char **argv){
@@ -26,7 +26,8 @@ int main(int argc, char **argv){
   for(int i =0 ; i<mesh->Np; ++i){
     u[i] = new double[mesh->K];
     for(int j = 0; j< mesh->K; ++j){
-      u[i][j] = sin(mesh->x[i][j]);
+//      u[i][j] = sin(mesh->x[i][j]);
+      u[i][j] = 1-(mesh->x[i][j]>1.0);
     }
   }
   std::ofstream file;

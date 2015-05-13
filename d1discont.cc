@@ -10,7 +10,7 @@
 #include<fstream>
 
 #include "mesh1d.h"
-#include "d1Advection.h"
+#include "d1discont.h"
 
 int AdvecRHS1D(double **u, double t, double a, dG1D_Framework *mesh, double **rhsu){
   double alpha = 0.5;
@@ -29,7 +29,9 @@ int AdvecRHS1D(double **u, double t, double a, dG1D_Framework *mesh, double **rh
  //   printf("m=%d,i=%d,j=%d,iM=%d,jM=%d,iP=%d,jP=%d\n",m,i,j,iM,jM,iP,jP);
     du[i][j] = (u[iM][jM]-u[iP][jP])*(a*mesh->nx[i][j]-(1-alpha)*fabs(a*mesh->nx[i][j]))/2.0;
   }
-  double uin = -sin(a*t);
+  i = mesh->vmapO%(mesh->Np);
+  j = mesh->vmapO/(mesh->Np);
+  double uin = u[i][j];
   i = mesh->mapI%(mesh->Nfp*mesh->Nfaces);
   j = mesh->mapI/(mesh->Nfp*mesh->Nfaces);
   iM = mesh->vmapI%mesh->Np;
