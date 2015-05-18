@@ -2,8 +2,18 @@
 Nodal Discontinuous Galerkin Methods, APC523 project
 ================================
 
-This is the project for course APC523, I will implement discontinuous nodal Galerkin methods for several problems (1-D and 2-D, advection, burger's and fluid dynamics) and compare them to Finite Volume methods / Finite Difference methods.
+This is the project for course APC523, I will implement discontinuous nodal Galerkin methods for several problems (for now 1-D advection, maxwell equations).
 
 ===========
 Files
 ===========
+mesh1d.cc: Includes all the methods required to declare an element of the class dG1D_Framework. Generates a uniform grid in 1D. Creates the Gauss-Lobatto points, Gauss-Jacobi polynomials, Vandermonde matrix, D_r, face connectivity matrix, etc.
+
+d1Advection.cc: First example, linear advection with initial condition sin(x) and boundary condition (sin(2pit),---)
+d1discont.cc: Second example, linear advection with initial condition a step function and periodical boundary conditions
+d1Maxwell.cc: Third example, Maxwell 1D equations
+unittest.cc: Unit tests for mesh1d.cc
+
+mesh2d.cc: Not working yet
+
+Makefile: Generates the executables. Call make all to create Adv_1D, Adv_Disc, Maxwell_1D and unittest. Requires GSL (GNU Scientific Library) to work.

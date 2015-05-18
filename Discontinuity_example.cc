@@ -49,7 +49,7 @@ int main(int argc, char **argv){
   }
   file.close();  
   double  FinalTime = 10;
-  Advec1D(u,2*pi,FinalTime,mesh);
+  Advec1D(u,2,FinalTime,mesh);
 
   file.open("Prova.dat");
   std::cout << "Writing to file..." <<std::endl;
